@@ -8,128 +8,179 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap"
       rel="stylesheet"
     />
-
     <!-- Add PDF.js library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.0.375/pdf.min.mjs"></script>
     <script>
-      // Configure PDF.js worker path before other scripts
+      // Configure PDF.js worker path
       if (window.pdfjsLib) {
         window.pdfjsLib.GlobalWorkerOptions.workerSrc =
           "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.0.375/pdf.worker.min.mjs";
       }
     </script>
-    <!-- Local GCash PDF Parser library instead of CDN -->
+    <!-- Local GCash PDF Parser library -->
     <script src="gcash-pdf-parser.min.js"></script>
   </head>
   <body>
-    <div class="container">
-      <header>
-        <h1>GCash PDF Statement Parser</h1>
-        <p>
-          Extract transactions from your GCash PDF statement directly in your
-          browser.
-        </p>
+    <div class="app-container">
+      <header class="app-header">
+        <div class="logo-container">
+          <div class="logo">
+            <span class="logo-icon">📊</span>
+            <h1>GCash Parser</h1>
+          </div>
+          <p class="tagline">
+            Extract transactions from your GCash PDF statement directly in your
+            browser
+          </p>
+        </div>
       </header>
 
-      <main>
-        <section class="notice">
-          <h2>Privacy First</h2>
-          <p>
-            🔒 All processing happens entirely within your browser. Your PDF
-            file and password are <strong>never</strong> uploaded or sent to any
-            server.
-          </p>
-        </section>
-
-        <section class="input-section card">
-          <h2>Upload Statement</h2>
-          <form id="parser-form">
-            <div class="form-group">
-              <label for="pdfFile">Select GCash PDF Statement:</label>
-              <input type="file" id="pdfFile" accept=".pdf" required />
+      <div class="content-wrapper">
+        <aside class="sidebar">
+          <div class="privacy-card">
+            <div class="card-header">
+              <span class="icon">🔒</span>
+              <h2>Privacy First</h2>
             </div>
-            <div class="form-group">
-              <label for="pdfPassword">PDF Password:</label>
-              <input
-                type="password"
-                id="pdfPassword"
-                placeholder="Enter the PDF password"
-                required
-              />
-            </div>
-            <button type="submit" id="parseButton">Parse PDF</button>
-          </form>
-          <div
-            id="status"
-            class="status-message"
-            role="alert"
-            aria-live="assertive"
-          ></div>
-        </section>
-
-        <section id="output-section" class="output-section card hidden">
-          <h2>Extracted Transactions</h2>
-          <a id="downloadCsvButton" class="download-button" disabled>
-            Download CSV
-          </a>
-          <div class="table-container">
-            <table id="resultsTable">
-              <thead>
-                <tr>
-                  <th>Date and Time</th>
-                  <th>Description</th>
-                  <th>Reference No</th>
-                  <th>Debit</th>
-                  <th>Credit</th>
-                  <th>Balance</th>
-                </tr>
-              </thead>
-              <tbody id="resultsBody"></tbody>
-            </table>
+            <p>
+              All processing happens entirely in your browser. Your PDF file and
+              password are
+              <strong>never</strong> uploaded or sent to any server.
+            </p>
           </div>
-          <p class="copy-notice">
-            You can select and copy the text directly from the table above.
-          </p>
-        </section>
 
-        <section class="donations card">
-          <h2>Enjoying the Tool?</h2>
-          <p>
-            If this tool saved you time, consider supporting its development!
-          </p>
-          <div class="donation-options">
-            <div class="donation-option">
-              <p><strong>Buy Me a Coffee / GCash:</strong></p>
-              <img
-                src="donations.jpg"
-                alt="GCash QR Code - Scan to Donate"
-                class="qr-code"
-              />
+          <div class="donation-card">
+            <div class="card-header">
+              <span class="icon">❤️</span>
+              <h2>Support This Project</h2>
             </div>
+            <p>
+              If this tool saved you time, consider supporting its development!
+            </p>
+            <img
+              src="donations.jpg"
+              alt="GCash QR Code - Scan to Donate"
+              class="qr-code"
+            />
+            <p class="donation-label">GCash / Buy Me a Coffee</p>
           </div>
-        </section>
-      </main>
+        </aside>
 
-      <footer>
+        <main class="main-content">
+          <section class="upload-section">
+            <div class="card">
+              <div class="card-header">
+                <span class="icon">📄</span>
+                <h2>Upload Statement</h2>
+              </div>
+
+              <form id="parser-form">
+                <div class="form-group">
+                  <label for="pdfFile">Select GCash PDF Statement</label>
+                  <div class="file-input-wrapper">
+                    <input type="file" id="pdfFile" accept=".pdf" required />
+                    <div class="file-upload-button">
+                      <span class="icon">📎</span>
+                      <span class="button-text">Choose File</span>
+                    </div>
+                    <span class="file-name" id="fileName">No file chosen</span>
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label for="pdfPassword">PDF Password</label>
+                  <div class="password-input-wrapper">
+                    <input
+                      type="password"
+                      id="pdfPassword"
+                      placeholder="Enter the password provided with your statement"
+                      required
+                    />
+                    <button
+                      type="button"
+                      id="togglePassword"
+                      class="toggle-password"
+                    >
+                      <span class="icon">👁️</span>
+                    </button>
+                  </div>
+                </div>
+
+                <button type="submit" id="parseButton" class="primary-button">
+                  <span class="icon">🔍</span>
+                  <span>Parse PDF</span>
+                </button>
+              </form>
+
+              <div
+                id="status"
+                class="status-message hidden"
+                role="alert"
+                aria-live="assertive"
+              ></div>
+            </div>
+          </section>
+
+          <section id="output-section" class="output-section hidden">
+            <div class="card">
+              <div class="card-header">
+                <span class="icon">📋</span>
+                <h2>Extracted Transactions</h2>
+                <button
+                  id="downloadCsvButton"
+                  class="secondary-button"
+                  disabled
+                >
+                  <span class="icon">📥</span>
+                  <span>Download CSV</span>
+                </button>
+              </div>
+
+              <div class="table-container">
+                <table id="resultsTable">
+                  <thead>
+                    <tr>
+                      <th>Date & Time</th>
+                      <th>Description</th>
+                      <th>Reference No</th>
+                      <th>Debit</th>
+                      <th>Credit</th>
+                      <th>Balance</th>
+                    </tr>
+                  </thead>
+                  <tbody id="resultsBody"></tbody>
+                </table>
+              </div>
+
+              <p class="hint-text">
+                You can select and copy data directly from the table
+              </p>
+            </div>
+          </section>
+        </main>
+      </div>
+
+      <footer class="app-footer">
         <p>
-          GCash PDF Parser | Created by
+          Created by
           <a
             href="https://github.com/KazeFreeze"
             target="_blank"
             rel="noopener noreferrer"
-            >Bernard G. Tapiru, Jr.</a
           >
-        </p>
-        <p>
+            Bernard G. Tapiru, Jr.
+          </a>
+          |
           <a
             href="https://github.com/KazeFreeze/gcash-pdf-parser"
             target="_blank"
             rel="noopener noreferrer"
-            >View Project on GitHub</a
           >
+            View on GitHub
+          </a>
         </p>
       </footer>
     </div>

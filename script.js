@@ -1,224 +1,263 @@
-// Wait for the DOM to be fully loaded
+// Modern GCash PDF Parser Script
 document.addEventListener("DOMContentLoaded", () => {
-  // Set PDF.js worker source - THIS IS THE CRITICAL FIX
+  // Configure PDF.js worker path
   if (window.pdfjsLib) {
     window.pdfjsLib.GlobalWorkerOptions.workerSrc =
       "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.0.375/pdf.worker.min.mjs";
   }
 
-  // Set PDF.js worker path for GCashPDFParser if that function exists
+  // Set PDF.js worker path for GCashPDFParser
   if (window.GCashPDFParser && window.GCashPDFParser.setPdfWorkerPath) {
     window.GCashPDFParser.setPdfWorkerPath(
       "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.0.375/pdf.worker.min.mjs"
     );
   }
 
-  // --- DOM Elements ---
+  // DOM Elements
   const form = document.getElementById("parser-form");
   const fileInput = document.getElementById("pdfFile");
+  const fileNameDisplay = document.getElementById("fileName");
   const passwordInput = document.getElementById("pdfPassword");
+  const togglePasswordBtn = document.getElementById("togglePassword");
   const parseButton = document.getElementById("parseButton");
   const statusDiv = document.getElementById("status");
   const outputSection = document.getElementById("output-section");
   const resultsTableBody = document.getElementById("resultsBody");
   const downloadCsvButton = document.getElementById("downloadCsvButton");
 
-  let currentCsvBlobUrl = null; // To store the Blob URL for cleanup
-  let csvData = null; // To store the generated CSV data
+  // State variables
+  let currentCsvBlobUrl = null;
+  let csvData = null;
+  let isProcessing = false;
 
-  // --- Event Listener ---
+  // Update filename display when file is selected
+  fileInput.addEventListener("change", () => {
+    const file = fileInput.files[0];
+    fileNameDisplay.textContent = file ? file.name : "No file chosen";
+  });
+
+  // Toggle password visibility
+  togglePasswordBtn.addEventListener("click", () => {
+    const type = passwordInput.type === "password" ? "text" : "password";
+    passwordInput.type = type;
+    togglePasswordBtn.querySelector(".icon").textContent =
+      type === "password" ? "👁️" : "🔒";
+  });
+
+  // Add click event listener for the download CSV button - FIXED IMPLEMENTATION
+  downloadCsvButton.addEventListener("click", (e) => {
+    e.preventDefault(); // Prevent default button behavior
+
+    // Check if the button is disabled
+    if (downloadCsvButton.disabled) {
+      return;
+    }
+
+    // Check if we have CSV data
+    if (csvData) {
+      // Create a new blob each time to ensure fresh download
+      const blob = new Blob([csvData], { type: "text/csv;charset=utf-8;" });
+      const blobUrl = URL.createObjectURL(blob);
+
+      // Generate filename with current date
+      const now = new Date();
+      const formattedDate = `${now.getFullYear()}${String(
+        now.getMonth() + 1
+      ).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
+      const fileName = `gcash_transactions_${formattedDate}.csv`;
+
+      // Create and trigger the download
+      const tempLink = document.createElement("a");
+      tempLink.href = blobUrl;
+      tempLink.download = fileName;
+      document.body.appendChild(tempLink);
+      tempLink.click();
+      document.body.removeChild(tempLink);
+
+      // Clean up the blob URL after download starts
+      setTimeout(() => {
+        URL.revokeObjectURL(blobUrl);
+      }, 100);
+
+      console.log("Download initiated:", { fileName });
+    } else {
+      console.error("No CSV data available for download");
+      showStatus("No data available for download", "error");
+    }
+  });
+
+  // Form submission handler
   form.addEventListener("submit", async (event) => {
-    event.preventDefault(); // Prevent default form submission
+    event.preventDefault();
+
+    // Prevent double submission
+    if (isProcessing) return;
 
     const file = fileInput.files[0];
     const password = passwordInput.value;
 
-    // Basic validation
+    // Validation
     if (!file) {
-      showStatus("Please select a PDF file.", "error");
-      return;
-    }
-    if (!password) {
-      showStatus("Please enter the PDF password.", "error");
-      return;
-    }
-    if (
-      typeof window.GCashPDFParser === "undefined" ||
-      typeof window.GCashPDFParser.parseGCashPDF === "undefined"
-    ) {
-      showStatus("Error: GCash Parser library not loaded correctly.", "error");
-      console.error(
-        "GCashPDFParser or parseGCashPDF function not found on window object."
-      );
+      showStatus("Please select a PDF file", "error");
       return;
     }
 
-    // Disable button, show loading state
-    parseButton.disabled = true;
-    parseButton.textContent = "Parsing...";
-    showStatus("Reading file...", "info");
+    if (!password) {
+      showStatus("Please enter the PDF password", "error");
+      return;
+    }
+
+    if (!window.GCashPDFParser || !window.GCashPDFParser.parseGCashPDF) {
+      showStatus("GCash Parser library not loaded correctly", "error");
+      console.error("GCashPDFParser not found or incorrectly loaded");
+      return;
+    }
+
+    // Start processing
+    isProcessing = true;
+    setLoadingState(true);
     hideOutput();
 
     try {
-      // Create a new file reader to read the file once
-      const fileReader = new FileReader();
+      // Read file as ArrayBuffer
+      const fileBuffer = await readFileAsArrayBuffer(file);
 
-      fileReader.onload = async function () {
-        try {
-          showStatus("Parsing PDF... This may take a moment.", "info");
+      // Show parsing status
+      showStatus("Parsing PDF statement...", "info");
 
-          // Create two separate copies of the ArrayBuffer for the two parsing operations
-          const fileData = fileReader.result;
+      // Parse transactions (make a copy of buffer)
+      const transactionsBuffer = fileBuffer.slice(0);
+      const transactions = await window.GCashPDFParser.parseGCashPDF(
+        transactionsBuffer,
+        password
+      );
 
-          // For transactions parsing - make a copy
-          const transactionsBuffer = fileData.slice(0);
-          // For CSV parsing - make another copy
-          const csvBuffer = fileData.slice(0);
+      // Generate CSV (make another copy of buffer)
+      const csvBuffer = fileBuffer.slice(0);
+      csvData = await window.GCashPDFParser.parseGCashPDFtoCSV(
+        csvBuffer,
+        password
+      );
 
-          try {
-            // Parse the PDF to get transactions
-            const transactions = await window.GCashPDFParser.parseGCashPDF(
-              transactionsBuffer,
-              password
-            );
+      // Display results
+      showStatus(
+        `Successfully extracted ${transactions.length} transactions`,
+        "success"
+      );
+      displayTransactions(transactions);
+      downloadCsvButton.disabled = false;
+      showOutput();
+    } catch (error) {
+      console.error("PDF Parsing Error:", error);
 
-            // Get the CSV data directly from the library
-            csvData = await window.GCashPDFParser.parseGCashPDFtoCSV(
-              csvBuffer,
-              password
-            );
+      // Determine error type and show appropriate message
+      let errorMessage = "Failed to parse PDF. ";
 
-            showStatus(
-              `Successfully parsed ${transactions.length} transactions.`,
-              "success"
-            );
-            displayTable(transactions);
-            setupCSVDownload(csvData);
-            showOutput();
-          } catch (error) {
-            console.error("Parsing Error:", error);
-            let errorMessage = "Failed to parse PDF. ";
-            if (
-              error.message &&
-              error.message.toLowerCase().includes("password")
-            ) {
-              errorMessage += "Incorrect password?";
-            } else if (
-              error.message &&
-              error.message.includes("invalid pdf structure")
-            ) {
-              errorMessage +=
-                "The PDF structure might be unsupported or corrupted.";
-            } else {
-              errorMessage +=
-                "Please check the password and ensure it is a valid GCash statement. See console for details.";
-            }
-            showStatus(errorMessage, "error");
-            hideOutput();
-          }
-        } catch (parseError) {
-          console.error("Parsing Error:", parseError);
-          showStatus("Error parsing the file. Please try again.", "error");
-        } finally {
-          // Re-enable button
-          parseButton.disabled = false;
-          parseButton.textContent = "Parse PDF";
-        }
-      };
+      if (error.message?.toLowerCase().includes("password")) {
+        errorMessage += "Please check if the password is correct.";
+      } else if (error.message?.includes("invalid pdf structure")) {
+        errorMessage +=
+          "The PDF format is not supported or the file may be corrupted.";
+      } else {
+        errorMessage += "Please ensure this is a valid GCash statement.";
+      }
 
-      fileReader.onerror = function () {
-        console.error("FileReader Error:", fileReader.error);
-        showStatus("Error reading the file. Please try again.", "error");
-        parseButton.disabled = false;
-        parseButton.textContent = "Parse PDF";
-      };
-
-      // Read the file as an ArrayBuffer
-      fileReader.readAsArrayBuffer(file);
-    } catch (fileError) {
-      console.error("File Reading Error:", fileError);
-      showStatus("Error reading the file. Please try again.", "error");
-      parseButton.disabled = false;
-      parseButton.textContent = "Parse PDF";
+      showStatus(errorMessage, "error");
+    } finally {
+      // Reset state
+      isProcessing = false;
+      setLoadingState(false);
     }
   });
 
-  // --- Helper Functions ---
-
-  function showStatus(message, type = "info") {
-    statusDiv.textContent = message;
-    statusDiv.className = `status-message ${type}`; // Reset classes and add new ones
-    statusDiv.classList.remove("hidden");
+  // Helper: Read file as ArrayBuffer
+  function readFileAsArrayBuffer(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(new Error("Failed to read file"));
+      reader.readAsArrayBuffer(file);
+    });
   }
 
-  function hideStatus() {
-    statusDiv.classList.add("hidden");
-    statusDiv.textContent = "";
-    statusDiv.className = "status-message"; // Reset classes
-  }
+  // Helper: Set loading state
+  function setLoadingState(isLoading) {
+    parseButton.disabled = isLoading;
 
-  function showOutput() {
-    outputSection.classList.remove("hidden");
-  }
-
-  function hideOutput() {
-    outputSection.classList.add("hidden");
-    resultsTableBody.innerHTML = ""; // Clear table
-    downloadCsvButton.disabled = true;
-    // Clean up previous blob URL if exists
-    if (currentCsvBlobUrl) {
-      URL.revokeObjectURL(currentCsvBlobUrl);
-      currentCsvBlobUrl = null;
-      downloadCsvButton.removeAttribute("href");
-      downloadCsvButton.removeAttribute("download");
+    if (isLoading) {
+      parseButton.innerHTML =
+        '<span class="icon">⏳</span><span>Processing...</span>';
+    } else {
+      parseButton.innerHTML =
+        '<span class="icon">🔍</span><span>Parse PDF</span>';
     }
   }
 
-  function displayTable(transactions) {
-    resultsTableBody.innerHTML = ""; // Clear previous results
+  // Helper: Show status message
+  function showStatus(message, type = "info") {
+    statusDiv.textContent = message;
+    statusDiv.className = `status-message ${type}`;
+    statusDiv.classList.remove("hidden");
+  }
+
+  // Helper: Hide status message
+  function hideStatus() {
+    statusDiv.classList.add("hidden");
+  }
+
+  // Helper: Show output section
+  function showOutput() {
+    outputSection.classList.remove("hidden");
+
+    // Scroll to output section with smooth animation
+    outputSection.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  // Helper: Hide output section
+  function hideOutput() {
+    outputSection.classList.add("hidden");
+    resultsTableBody.innerHTML = "";
+    downloadCsvButton.disabled = true;
+
+    // Clean up previous blob URL
+    if (currentCsvBlobUrl) {
+      URL.revokeObjectURL(currentCsvBlobUrl);
+      currentCsvBlobUrl = null;
+    }
+  }
+
+  // Helper: Display transactions in table
+  function displayTransactions(transactions) {
+    resultsTableBody.innerHTML = "";
 
     if (!transactions || transactions.length === 0) {
       const row = resultsTableBody.insertRow();
       const cell = row.insertCell();
-      cell.colSpan = 6; // Span across all columns
-      cell.textContent = "No transactions found or extracted.";
-      cell.style.textAlign = "center";
+      cell.colSpan = 6;
+      cell.textContent = "No transactions found in the statement";
+      cell.className = "text-center";
       return;
     }
 
+    // Add each transaction to the table
     transactions.forEach((tx) => {
       const row = resultsTableBody.insertRow();
-      row.insertCell().textContent = tx.dateTime || "";
-      row.insertCell().textContent = tx.description || "";
-      row.insertCell().textContent = tx.referenceNo || "";
-      row.insertCell().textContent = tx.debit || "";
-      row.insertCell().textContent = tx.credit || "";
-      row.insertCell().textContent = tx.balance || "";
+
+      // Format cells with appropriate data
+      addCell(row, tx.dateTime || "");
+      addCell(row, tx.description || "");
+      addCell(row, tx.referenceNo || "");
+      addCell(row, tx.debit || "", tx.debit ? "debit" : "");
+      addCell(row, tx.credit || "", tx.credit ? "credit" : "");
+      addCell(row, tx.balance || "", "balance");
     });
   }
 
-  function setupCSVDownload(csvContent) {
-    // Clean up previous blob URL if exists before creating a new one
-    if (currentCsvBlobUrl) {
-      URL.revokeObjectURL(currentCsvBlobUrl);
-      currentCsvBlobUrl = null;
-    }
-
-    if (!csvContent) {
-      downloadCsvButton.disabled = true;
-      return;
-    }
-
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    currentCsvBlobUrl = URL.createObjectURL(blob); // Store the new URL
-
-    downloadCsvButton.href = currentCsvBlobUrl;
-    // Suggest a filename based on the date
-    const date = new Date();
-    const formattedDate = `${date.getFullYear()}${(date.getMonth() + 1)
-      .toString()
-      .padStart(2, "0")}${date.getDate().toString().padStart(2, "0")}`;
-    downloadCsvButton.download = `gcash_transactions_${formattedDate}.csv`;
-    downloadCsvButton.disabled = false;
+  // Helper: Add cell to row with optional class
+  function addCell(row, content, className = "") {
+    const cell = row.insertCell();
+    cell.textContent = content;
+    if (className) cell.className = className;
+    return cell;
   }
-}); // End DOMContentLoaded
+});
