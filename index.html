@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GCash PDF Statement Parser</title>
+    <link rel="stylesheet" href="style.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs"
+      type="module"
+    ></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/gcash-pdf-parser@latest/dist/browser/gcash-pdf-parser.min.js"></script>
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>GCash PDF Statement Parser</h1>
+        <p>
+          Extract transactions from your GCash PDF statement directly in your
+          browser.
+        </p>
+      </header>
+
+      <main>
+        <section class="notice">
+          <h2>Privacy First</h2>
+          <p>
+            🔒 All processing happens entirely within your browser. Your PDF
+            file and password are <strong>never</strong> uploaded or sent to any
+            server.
+          </p>
+        </section>
+
+        <section class="input-section card">
+          <h2>Upload Statement</h2>
+          <form id="parser-form">
+            <div class="form-group">
+              <label for="pdfFile">Select GCash PDF Statement:</label>
+              <input type="file" id="pdfFile" accept=".pdf" required />
+            </div>
+            <div class="form-group">
+              <label for="pdfPassword">PDF Password:</label>
+              <input
+                type="password"
+                id="pdfPassword"
+                placeholder="Enter the PDF password"
+                required
+              />
+            </div>
+            <button type="submit" id="parseButton">Parse PDF</button>
+          </form>
+          <div
+            id="status"
+            class="status-message"
+            role="alert"
+            aria-live="assertive"
+          ></div>
+        </section>
+
+        <section id="output-section" class="output-section card hidden">
+          <h2>Extracted Transactions</h2>
+          <button id="downloadCsvButton" class="download-button" disabled>
+            Download CSV
+          </button>
+          <div class="table-container">
+            <table id="resultsTable">
+              <thead>
+                <tr>
+                  <th>Date and Time</th>
+                  <th>Description</th>
+                  <th>Reference No</th>
+                  <th>Debit</th>
+                  <th>Credit</th>
+                  <th>Balance</th>
+                </tr>
+              </thead>
+              <tbody id="resultsBody"></tbody>
+            </table>
+          </div>
+          <p class="copy-notice">
+            You can select and copy the text directly from the table above.
+          </p>
+        </section>
+
+        <section class="donations card">
+          <h2>Enjoying the Tool?</h2>
+          <p>
+            If this tool saved you time, consider supporting its development!
+          </p>
+          <div class="donation-options">
+            <div class="donation-option">
+              <p><strong>Buy Me a Coffee / GCash:</strong></p>
+              <img
+                src="donations.jpg"
+                alt="GCash QR Code - Scan to Donate"
+                class="qr-code"
+              />
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer>
+        <p>
+          GCash PDF Parser | Created by
+          <a
+            href="https://github.com/KazeFreeze"
+            target="_blank"
+            rel="noopener noreferrer"
+            >Bernard G. Tapiru, Jr.</a
+          >
+        </p>
+        <p>
+          <a
+            href="https://github.com/KazeFreeze/gcash-pdf-parser"
+            target="_blank"
+            rel="noopener noreferrer"
+            >View Project on GitHub</a
+          >
+        </p>
+      </footer>
+    </div>
+
+    <script src="script.js"></script>
+  </body>
+</html>
