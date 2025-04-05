@@ -12,7 +12,17 @@
       rel="stylesheet"
     />
 
-    <script src="https://cdn.jsdelivr.net/npm/gcash-pdf-parser@1.0.0/dist/browser/gcash-pdf-parser.min.js"></script>
+    <!-- Add PDF.js library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.0.375/pdf.min.mjs"></script>
+    <script>
+      // Configure PDF.js worker path before other scripts
+      if (window.pdfjsLib) {
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+          "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.0.375/pdf.worker.min.mjs";
+      }
+    </script>
+    <!-- Local GCash PDF Parser library instead of CDN -->
+    <script src="gcash-pdf-parser.min.js"></script>
   </head>
   <body>
     <div class="container">
@@ -62,9 +72,9 @@
 
         <section id="output-section" class="output-section card hidden">
           <h2>Extracted Transactions</h2>
-          <button id="downloadCsvButton" class="download-button" disabled>
+          <a id="downloadCsvButton" class="download-button" disabled>
             Download CSV
-          </button>
+          </a>
           <div class="table-container">
             <table id="resultsTable">
               <thead>

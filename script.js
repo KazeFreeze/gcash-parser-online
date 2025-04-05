@@ -1,5 +1,18 @@
 // Wait for the DOM to be fully loaded
 document.addEventListener("DOMContentLoaded", () => {
+  // Set PDF.js worker source - THIS IS THE CRITICAL FIX
+  if (window.pdfjsLib) {
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.0.375/pdf.worker.min.mjs";
+  }
+
+  // Set PDF.js worker path for GCashPDFParser if that function exists
+  if (window.GCashPDFParser && window.GCashPDFParser.setPdfWorkerPath) {
+    window.GCashPDFParser.setPdfWorkerPath(
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.0.375/pdf.worker.min.mjs"
+    );
+  }
+
   // --- DOM Elements ---
   const form = document.getElementById("parser-form");
   const fileInput = document.getElementById("pdfFile");
@@ -11,41 +24,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const downloadCsvButton = document.getElementById("downloadCsvButton");
 
   let currentCsvBlobUrl = null; // To store the Blob URL for cleanup
-
-  // --- PDF.js Worker Configuration ---
-  // The UMD build of gcash-pdf-parser bundles pdf.js. We need to tell
-  // *that* bundled pdf.js where to find its worker script.
-  // We try setting the global workerSrc assuming the library uses it.
-  // IMPORTANT: The path must be correct relative to where the worker script is served.
-  // Using the CDN link directly is often the easiest for GitHub Pages.
-  if (window.pdfjsLib) {
-    // Use version matching the one potentially bundled or use a recent stable one
-    window.pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs`;
-    console.log("pdf.js worker source configured.");
-  } else if (
-    window.GCashPDFParser &&
-    window.GCashPDFParser.GCashPDFParser &&
-    typeof window.GCashPDFParser.GCashPDFParser.setWorkerSrc === "function"
-  ) {
-    // Ideal scenario: If the library explicitly provides a method
-    window.GCashPDFParser.GCashPDFParser.setWorkerSrc(
-      `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs`
-    );
-    console.log("pdf.js worker source configured via library method.");
-  } else {
-    console.warn(
-      "Could not automatically configure pdf.js worker. Parsing might fail. Ensure 'pdf.worker.min.mjs' is accessible or workerSrc is set correctly."
-    );
-    // Attempting a best guess - assumes the library exposes pdfjsLib under its namespace
-    try {
-      if (window.GCashPDFParser && window.GCashPDFParser.pdfjsLib) {
-        window.GCashPDFParser.pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs`;
-        console.log(
-          "Attempted worker configuration via GCashPDFParser.pdfjsLib"
-        );
-      }
-    } catch (e) {}
-  }
+  let csvData = null; // To store the generated CSV data
 
   // --- Event Listener ---
   form.addEventListener("submit", async (event) => {
@@ -80,55 +59,88 @@ document.addEventListener("DOMContentLoaded", () => {
     showStatus("Reading file...", "info");
     hideOutput();
 
-    // Read file as ArrayBuffer
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const pdfData = e.target.result; // ArrayBuffer
+    try {
+      // Create a new file reader to read the file once
+      const fileReader = new FileReader();
 
-      try {
-        showStatus("Parsing PDF... This may take a moment.", "info");
+      fileReader.onload = async function () {
+        try {
+          showStatus("Parsing PDF... This may take a moment.", "info");
 
-        // --- Call the Parser ---
-        const transactions = await window.GCashPDFParser.parseGCashPDF(
-          pdfData,
-          password
-        );
+          // Create two separate copies of the ArrayBuffer for the two parsing operations
+          const fileData = fileReader.result;
 
-        showStatus(
-          `Successfully parsed ${transactions.length} transactions.`,
-          "success"
-        );
-        displayTable(transactions);
-        setupCSVDownload(transactions);
-        showOutput();
-      } catch (error) {
-        console.error("Parsing Error:", error);
-        let errorMessage = "Failed to parse PDF. ";
-        if (error.message.toLowerCase().includes("password")) {
-          errorMessage += "Incorrect password?";
-        } else if (error.message.includes("invalid pdf structure")) {
-          errorMessage +=
-            "The PDF structure might be unsupported or corrupted.";
-        } else {
-          errorMessage +=
-            "Please check the password and ensure it is a valid GCash statement. See console for details.";
+          // For transactions parsing - make a copy
+          const transactionsBuffer = fileData.slice(0);
+          // For CSV parsing - make another copy
+          const csvBuffer = fileData.slice(0);
+
+          try {
+            // Parse the PDF to get transactions
+            const transactions = await window.GCashPDFParser.parseGCashPDF(
+              transactionsBuffer,
+              password
+            );
+
+            // Get the CSV data directly from the library
+            csvData = await window.GCashPDFParser.parseGCashPDFtoCSV(
+              csvBuffer,
+              password
+            );
+
+            showStatus(
+              `Successfully parsed ${transactions.length} transactions.`,
+              "success"
+            );
+            displayTable(transactions);
+            setupCSVDownload(csvData);
+            showOutput();
+          } catch (error) {
+            console.error("Parsing Error:", error);
+            let errorMessage = "Failed to parse PDF. ";
+            if (
+              error.message &&
+              error.message.toLowerCase().includes("password")
+            ) {
+              errorMessage += "Incorrect password?";
+            } else if (
+              error.message &&
+              error.message.includes("invalid pdf structure")
+            ) {
+              errorMessage +=
+                "The PDF structure might be unsupported or corrupted.";
+            } else {
+              errorMessage +=
+                "Please check the password and ensure it is a valid GCash statement. See console for details.";
+            }
+            showStatus(errorMessage, "error");
+            hideOutput();
+          }
+        } catch (parseError) {
+          console.error("Parsing Error:", parseError);
+          showStatus("Error parsing the file. Please try again.", "error");
+        } finally {
+          // Re-enable button
+          parseButton.disabled = false;
+          parseButton.textContent = "Parse PDF";
         }
-        showStatus(errorMessage, "error");
-        hideOutput();
-      } finally {
-        // Re-enable button
+      };
+
+      fileReader.onerror = function () {
+        console.error("FileReader Error:", fileReader.error);
+        showStatus("Error reading the file. Please try again.", "error");
         parseButton.disabled = false;
         parseButton.textContent = "Parse PDF";
-      }
-    };
+      };
 
-    reader.onerror = () => {
-      showStatus("Error reading the selected file.", "error");
+      // Read the file as an ArrayBuffer
+      fileReader.readAsArrayBuffer(file);
+    } catch (fileError) {
+      console.error("File Reading Error:", fileError);
+      showStatus("Error reading the file. Please try again.", "error");
       parseButton.disabled = false;
       parseButton.textContent = "Parse PDF";
-    };
-
-    reader.readAsArrayBuffer(file);
+    }
   });
 
   // --- Helper Functions ---
@@ -185,57 +197,13 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  function generateCSV(transactions) {
-    if (!transactions || transactions.length === 0) {
-      return "";
-    }
-
-    const header = [
-      "Date and Time",
-      "Description",
-      "Reference No",
-      "Debit",
-      "Credit",
-      "Balance",
-    ];
-    // Escape commas and quotes within fields
-    const escapeCsvCell = (cellData) => {
-      const strData = String(cellData || ""); // Ensure it's a string
-      // If data contains comma, newline, or double quote, enclose in double quotes
-      if (
-        strData.includes(",") ||
-        strData.includes("\n") ||
-        strData.includes('"')
-      ) {
-        // Escape existing double quotes by doubling them
-        const escapedData = strData.replace(/"/g, '""');
-        return `"${escapedData}"`;
-      }
-      return strData;
-    };
-
-    const rows = transactions.map((tx) =>
-      [
-        escapeCsvCell(tx.dateTime),
-        escapeCsvCell(tx.description),
-        escapeCsvCell(tx.referenceNo),
-        escapeCsvCell(tx.debit),
-        escapeCsvCell(tx.credit),
-        escapeCsvCell(tx.balance),
-      ].join(",")
-    );
-
-    return [header.join(","), ...rows].join("\n");
-  }
-
-  function setupCSVDownload(transactions) {
+  function setupCSVDownload(csvContent) {
     // Clean up previous blob URL if exists before creating a new one
     if (currentCsvBlobUrl) {
       URL.revokeObjectURL(currentCsvBlobUrl);
       currentCsvBlobUrl = null;
     }
 
-    const csvContent = generateCSV(transactions);
     if (!csvContent) {
       downloadCsvButton.disabled = true;
       return;
@@ -245,23 +213,12 @@ document.addEventListener("DOMContentLoaded", () => {
     currentCsvBlobUrl = URL.createObjectURL(blob); // Store the new URL
 
     downloadCsvButton.href = currentCsvBlobUrl;
-    // Suggest a filename based on the date maybe?
+    // Suggest a filename based on the date
     const date = new Date();
     const formattedDate = `${date.getFullYear()}${(date.getMonth() + 1)
       .toString()
       .padStart(2, "0")}${date.getDate().toString().padStart(2, "0")}`;
     downloadCsvButton.download = `gcash_transactions_${formattedDate}.csv`;
     downloadCsvButton.disabled = false;
-
-    // Optional: Add listener to revoke URL after click (might be handled by browser anyway)
-    // downloadCsvButton.onclick = () => {
-    //     setTimeout(() => {
-    //         if (currentCsvBlobUrl) {
-    //             URL.revokeObjectURL(currentCsvBlobUrl);
-    //             currentCsvBlobUrl = null;
-    //             console.log("Blob URL revoked after download click.");
-    //         }
-    //     }, 100); // Delay allows download to initiate
-    // };
   }
 }); // End DOMContentLoaded
