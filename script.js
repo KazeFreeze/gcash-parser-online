@@ -20,7 +20,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Using the CDN link directly is often the easiest for GitHub Pages.
   if (window.pdfjsLib) {
     // Use version matching the one potentially bundled or use a recent stable one
-    window.pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.1.91/pdf.worker.min.mjs`;
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs`;
     console.log("pdf.js worker source configured.");
   } else if (
     window.GCashPDFParser &&
@@ -29,7 +29,7 @@ document.addEventListener("DOMContentLoaded", () => {
   ) {
     // Ideal scenario: If the library explicitly provides a method
     window.GCashPDFParser.GCashPDFParser.setWorkerSrc(
-      `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.1.91/pdf.worker.min.mjs`
+      `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs`
     );
     console.log("pdf.js worker source configured via library method.");
   } else {
@@ -39,7 +39,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Attempting a best guess - assumes the library exposes pdfjsLib under its namespace
     try {
       if (window.GCashPDFParser && window.GCashPDFParser.pdfjsLib) {
-        window.GCashPDFParser.pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.1.91/pdf.worker.min.mjs`;
+        window.GCashPDFParser.pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs`;
         console.log(
           "Attempted worker configuration via GCashPDFParser.pdfjsLib"
         );
