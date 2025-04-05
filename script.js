@@ -261,3 +261,58 @@ document.addEventListener("DOMContentLoaded", () => {
     return cell;
   }
 });
+
+document.addEventListener("DOMContentLoaded", () => {
+  // Set up QR code modal functionality
+  const qrCodeImage = document.querySelector(".qr-code");
+
+  // Skip if no QR code image found
+  if (!qrCodeImage) return;
+
+  // Create modal elements
+  const modal = document.createElement("div");
+  modal.className = "qr-modal";
+  modal.innerHTML = `
+    <div class="qr-modal-content">
+      <span class="qr-modal-close">&times;</span>
+      <img src="${qrCodeImage.src}" alt="${
+    qrCodeImage.alt
+  }" class="qr-modal-image">
+      <p class="qr-modal-caption">${
+        document.querySelector(".donation-label").textContent
+      }</p>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  // Close button functionality
+  const closeButton = modal.querySelector(".qr-modal-close");
+  closeButton.addEventListener("click", () => {
+    modal.classList.remove("show");
+    document.body.classList.remove("modal-open");
+  });
+
+  // Close modal when clicking outside of content
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) {
+      modal.classList.remove("show");
+      document.body.classList.remove("modal-open");
+    }
+  });
+
+  // Make QR code clickable and show modal on click
+  qrCodeImage.style.cursor = "pointer";
+  qrCodeImage.title = "Click to expand QR code";
+  qrCodeImage.addEventListener("click", () => {
+    modal.classList.add("show");
+    document.body.classList.add("modal-open");
+  });
+
+  // Close modal with Escape key
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && modal.classList.contains("show")) {
+      modal.classList.remove("show");
+      document.body.classList.remove("modal-open");
+    }
+  });
+});
